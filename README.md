@@ -53,5 +53,7 @@ New discussions posted in the **Q&A** or **General** category are automatically 
 
 If no relevant context is found, it tags `@pwei1018` (configurable via the `QA_BOT_MAINTAINERS_MENTION` repository variable) for manual follow-up instead of guessing. It generates answers using the [GitHub Copilot CLI](https://docs.github.com/en/copilot/how-tos/copilot-cli/use-copilot-cli-in-actions) (`copilot -p ... -s --no-ask-user`), authenticated via the built-in `GITHUB_TOKEN` with the `copilot-requests: write` permission — no external secrets required (assuming your org's "Allow use of Copilot CLI billed to the organization" policy is enabled; otherwise a PAT can be substituted, see the workflow's comments).
 
+**Manually re-running the bot:** trigger `.github/workflows/qa-bot.yml` via "Run workflow" (workflow_dispatch) and supply the discussion number. Useful for retrying an escalated question after the knowledge base or retrieval logic has been improved, without needing to recreate the discussion.
+
 ## 📬 Contact & Support
 If you are experiencing a critical production outage or an issue containing confidential data that cannot be shared publicly, please contact our enterprise support desk directly rather than opening a public issue.

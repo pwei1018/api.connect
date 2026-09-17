@@ -1,11 +1,16 @@
 name: Q&A Auto-Responder
 
-# Automatically answers new "Q&A" discussions using:
+# Automatically answers new "Q&A"/"General" discussions using:
 #  - this repo's previously answered Q&A discussions
 #  - the markdown knowledge base in bcgov/developer.connect (web/site/content)
+#  - the imported forum knowledge base (.github/knowledge-base/forum)
 # via GitHub Copilot CLI (@github/copilot), run non-interactively in
 # programmatic mode. Falls back to tagging maintainers when no relevant
 # context is found or Copilot can't produce a grounded answer.
+#
+# Manual re-run: use the "Run workflow" button (workflow_dispatch) and pass
+# a discussion number to re-answer it — useful after updating the knowledge
+# base or improving retrieval, without needing to recreate the discussion.
 #
 # Auth: uses the built-in GITHUB_TOKEN with the `copilot-requests: write`
 # permission. This requires your organization's "Allow use of Copilot CLI
@@ -17,6 +22,12 @@ name: Q&A Auto-Responder
 on:
   discussion:
     types: [created]
+  workflow_dispatch:
+    inputs:
+      discussion_number:
+        description: 'Discussion number to (re-)answer, e.g. after a knowledge-base update or an escalated question'
+        required: true
+        type: number
 
 permissions:
   contents: read
@@ -24,12 +35,11 @@ permissions:
   copilot-requests: write
 
 concurrency:
-  group: qa-bot-${{ github.event.discussion.number }}
+  group: qa-bot-${{ github.event.discussion.number || inputs.discussion_number }}
   cancel-in-progress: true
 
 jobs:
   answer:
-    if: github.event.discussion.category.slug == 'q-a' || github.event.discussion.category.name == 'Q&A' || github.event.discussion.category.slug == 'general' || github.event.discussion.category.name == 'General'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -43,20 +53,44 @@ jobs:
       - name: Install Copilot CLI
         run: npm install -g @github/copilot
 
+      - name: Resolve discussion (manual re-run)
+        id: resolve
+        if: github.event_name == 'workflow_dispatch'
+        continue-on-error: true # a lookup failure (e.g. bad number) must not crash the job — scope check below treats it as out-of-scope
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          DISCUSSION_NUMBER: ${{ inputs.discussion_number }}
+        run: node .github/scripts/resolve-discussion.mjs
+
+      - name: Check discussion is in scope
+        id: scope
+        env:
+          CATEGORY_SLUG: ${{ github.event_name == 'workflow_dispatch' && steps.resolve.outputs.category_slug || github.event.discussion.category.slug }}
+          CATEGORY_NAME: ${{ github.event_name == 'workflow_dispatch' && steps.resolve.outputs.category_name || github.event.discussion.category.name }}
+        run: |
+          if [[ "$CATEGORY_SLUG" == "q-a" || "$CATEGORY_NAME" == "Q&A" || "$CATEGORY_SLUG" == "general" || "$CATEGORY_NAME" == "General" ]]; then
+            echo "in_scope=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "in_scope=false" >> "$GITHUB_OUTPUT"
+            echo "Discussion category '$CATEGORY_NAME' ($CATEGORY_SLUG) is not Q&A or General — skipping."
+          fi
+
       - name: Build retrieval context
         id: context
+        if: steps.scope.outputs.in_scope == 'true'
         continue-on-error: true # a fetch/API hiccup here must not silently drop the discussion
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
-          DISCUSSION_TITLE: ${{ github.event.discussion.title }}
-          DISCUSSION_BODY: ${{ github.event.discussion.body }}
+          DISCUSSION_TITLE: ${{ github.event_name == 'workflow_dispatch' && steps.resolve.outputs.title || github.event.discussion.title }}
+          DISCUSSION_BODY: ${{ github.event_name == 'workflow_dispatch' && steps.resolve.outputs.body || github.event.discussion.body }}
           KNOWLEDGE_REPO: bcgov/developer.connect
           KNOWLEDGE_PATH: web/site/content
         run: node .github/scripts/build-context.mjs
 
       - name: Ask Copilot CLI for a grounded answer
-        if: steps.context.outputs.has_context == 'true'
+        if: steps.scope.outputs.in_scope == 'true' && steps.context.outputs.has_context == 'true'
         continue-on-error: true # fall through to the maintainer-escalation comment on any failure
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -71,10 +105,10 @@ jobs:
           copilot -p "$(cat "$RUNNER_TEMP/qa-prompt.txt")" -s --no-ask-user --no-custom-instructions > "$RUNNER_TEMP/qa-answer.txt"
 
       - name: Post answer to discussion
-        if: always() # always reply, even if an earlier step failed, so discussions never go silent
+        if: steps.scope.outputs.in_scope == 'true' # always reply when in scope, even if an earlier step failed, so discussions never go silent
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DISCUSSION_ID: ${{ github.event.discussion.node_id }}
+          DISCUSSION_ID: ${{ github.event_name == 'workflow_dispatch' && steps.resolve.outputs.node_id || github.event.discussion.node_id }}
           MAINTAINERS_TEAM: ${{ vars.QA_BOT_MAINTAINERS_MENTION || '@pwei1018' }}
           MODE: ${{ steps.context.outputs.has_context == 'true' && 'answered' || 'no-context' }}
         run: node .github/scripts/post-answer.mjs
