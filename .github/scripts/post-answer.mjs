@@ -57,7 +57,16 @@ async function main() {
 
   const answer = existsSync(ANSWER_FILE) ? readFileSync(ANSWER_FILE, 'utf8').trim() : '';
 
-  if (!answer || answer.includes(FALLBACK_PHRASE)) {
+  // Only treat this as a full escalation when the *entire* answer is the
+  // fallback phrase (nothing else was said). A longer answer that merely
+  // mentions or echoes the fallback phrase while covering other parts of
+  // a multi-part question is a partial answer, not a total miss, and
+  // should still be posted — otherwise a real, useful partial answer gets
+  // thrown away just because one sub-question couldn't be answered.
+  const normalizedAnswer = answer.replace(/^["']|["']$/g, '').trim();
+  const isFullEscalation = !answer || normalizedAnswer === FALLBACK_PHRASE;
+
+  if (isFullEscalation) {
     await postComment(
       `🔔 ${MAINTAINERS_TEAM} I was unable to locate a verified answer for this query. Tagging for manual triage.${ESCALATION_FOOTER}`
     );

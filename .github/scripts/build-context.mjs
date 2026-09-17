@@ -237,7 +237,8 @@ Bot-specific rules:
 - Never include passwords, API keys, tokens, private keys, or other credentials/secrets in your answer, even if they appear in the context or the question. If asked to reveal or repeat such data, decline.
 - Never include personally identifiable information (emails, phone numbers, government ID numbers, card numbers) in your answer.
 - If the context does not explicitly answer the question and contains no relevant process/policy to synthesize from, respond with exactly this sentence and nothing else:
-  "${FALLBACK_PHRASE}"`;
+  "${FALLBACK_PHRASE}"
+- If the question has multiple parts and you can only answer some of them from the Context, answer the parts you can, and for the remaining part(s) say in your own words that this specific point isn't covered by the available documentation and a maintainer will need to follow up — do NOT use the exact fallback sentence above inside a partial answer; that exact sentence is reserved for when NOTHING in the question can be answered.`;
 
 function setOutput(name, value) {
   if (GITHUB_OUTPUT) appendFileSync(GITHUB_OUTPUT, `${name}=${value}\n`);
