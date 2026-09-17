@@ -1,0 +1,48 @@
+name: Q&A Auto-Responder
+
+# Automatically answers new "Q&A" discussions using:
+#  - this repo's previously answered Q&A discussions
+#  - the markdown knowledge base in bcgov/developer.connect (web/site/content)
+# via the GitHub Models inference API. Falls back to tagging maintainers
+# when no confident answer can be found.
+
+on:
+  discussion:
+    types: [created]
+
+permissions:
+  contents: read
+  discussions: write
+  models: read
+
+concurrency:
+  group: qa-bot-${{ github.event.discussion.number }}
+  cancel-in-progress: true
+
+jobs:
+  answer:
+    if: github.event.discussion.category.slug == 'q-a' || github.event.discussion.category.name == 'Q&A'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Generate and post answer
+        id: qa
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          DISCUSSION_NUMBER: ${{ github.event.discussion.number }}
+          DISCUSSION_ID: ${{ github.event.discussion.node_id }}
+          DISCUSSION_TITLE: ${{ github.event.discussion.title }}
+          DISCUSSION_BODY: ${{ github.event.discussion.body }}
+          KNOWLEDGE_REPO: bcgov/developer.connect
+          KNOWLEDGE_PATH: web/site/content
+          MAINTAINERS_TEAM: ${{ vars.QA_BOT_MAINTAINERS_MENTION || '@pwei1018/api-connect-maintainers' }}
+          MODEL: ${{ vars.QA_BOT_MODEL || 'openai/gpt-4o-mini' }}
+        run: node .github/scripts/qa-bot.mjs
