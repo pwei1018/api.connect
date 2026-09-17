@@ -238,7 +238,8 @@ Bot-specific rules:
 - Never include personally identifiable information (emails, phone numbers, government ID numbers, card numbers) in your answer.
 - If the context does not explicitly answer the question and contains no relevant process/policy to synthesize from, respond with exactly this sentence and nothing else:
   "${FALLBACK_PHRASE}"
-- If the question has multiple parts and you can only answer some of them from the Context, answer the parts you can, and for the remaining part(s) say in your own words that this specific point isn't covered by the available documentation and a maintainer will need to follow up — do NOT use the exact fallback sentence above inside a partial answer; that exact sentence is reserved for when NOTHING in the question can be answered.`;
+- If the question has multiple parts and you can only answer some of them from the Context, answer the parts you can, and for the remaining part(s) note briefly, inline within that part's own section, that it isn't covered by the available documentation — do NOT use the exact fallback sentence above inside a partial answer; that exact sentence is reserved for when NOTHING in the question can be answered.
+- Do not add a closing apology paragraph (e.g. "I'm sorry, I couldn't find...") at the end of an otherwise-answered response — only the relevant part(s) above should mention what's uncovered, and the response should end with your actual recommendation or next step instead.`;
 
 function setOutput(name, value) {
   if (GITHUB_OUTPUT) appendFileSync(GITHUB_OUTPUT, `${name}=${value}\n`);
