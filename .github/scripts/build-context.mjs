@@ -1,22 +1,25 @@
 #!/usr/bin/env node
-// Q&A Auto-Responder
+// Q&A Auto-Responder — context builder
 //
-// Answers a newly created "Q&A" discussion by retrieving relevant context from:
+// Retrieves candidate context for a newly created "Q&A" discussion from:
 //   1. previously answered Q&A discussions in this repository
 //   2. the markdown knowledge base in bcgov/developer.connect (web/site/content)
-// and asking a GitHub Models chat completion to draft a grounded answer.
-// If no relevant context is found, it posts a fallback comment tagging maintainers.
+// and writes a ready-to-use prompt for GitHub Copilot CLI, plus the list of
+// sources used, to files under $RUNNER_TEMP. Sets the `has_context` step
+// output so the workflow can skip the CLI call and escalate directly when
+// nothing relevant was found.
+
+import { writeFileSync, appendFileSync } from 'node:fs';
 
 const {
   GITHUB_TOKEN,
   REPO,
-  DISCUSSION_ID,
   DISCUSSION_TITLE = '',
   DISCUSSION_BODY = '',
   KNOWLEDGE_REPO = 'bcgov/developer.connect',
   KNOWLEDGE_PATH = 'web/site/content',
-  MAINTAINERS_TEAM = '@maintainers',
-  MODEL = 'openai/gpt-4o-mini',
+  RUNNER_TEMP = '.',
+  GITHUB_OUTPUT,
 } = process.env;
 
 const [OWNER, REPO_NAME] = REPO.split('/');
@@ -25,8 +28,10 @@ const FALLBACK_PHRASE =
 const MIN_CONTEXT_SCORE = 1; // require at least one keyword overlap to attempt an answer
 const MAX_CONTEXT_CHARS = 12000;
 
+const PROMPT_FILE = `${RUNNER_TEMP}/qa-prompt.txt`;
+const SOURCES_FILE = `${RUNNER_TEMP}/qa-sources.txt`;
+
 if (!GITHUB_TOKEN) throw new Error('GITHUB_TOKEN is required');
-if (!DISCUSSION_ID) throw new Error('DISCUSSION_ID is required');
 
 async function githubGraphQL(query, variables) {
   const res = await fetch('https://api.github.com/graphql', {
@@ -137,7 +142,6 @@ function selectRelevantContext(question, docs) {
   return selected;
 }
 
-// --- 3. Ask GitHub Models for a grounded answer ---
 const SYSTEM_PROMPT = `You are the "Project Documentation Assistant" for the BC Registries API Users Group.
 
 Personality and tone:
@@ -152,50 +156,12 @@ Response formatting:
 
 Accuracy rules:
 - Rely strictly on the provided context (previous Q&A answers and the linked documentation excerpts). Do not invent facts.
+- Do not run any shell commands, read other files, or use tools; answer using only the context given below.
 - If the context does not explicitly answer the question, respond with exactly this sentence and nothing else:
   "${FALLBACK_PHRASE}"`;
 
-async function generateAnswer(question, contextDocs) {
-  const contextText = contextDocs
-    .map((doc) => `### Source: ${doc.source}\n${doc.text}`)
-    .join('\n\n');
-
-  const userPrompt = `Context:\n${contextText}\n\n---\nQuestion:\n${question}`;
-
-  const res = await fetch('https://models.github.ai/inference/chat/completions', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${GITHUB_TOKEN}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: userPrompt },
-      ],
-      temperature: 0.2,
-    }),
-  });
-
-  if (!res.ok) {
-    throw new Error(`Models API error ${res.status}: ${await res.text()}`);
-  }
-  const json = await res.json();
-  return json.choices?.[0]?.message?.content?.trim() ?? '';
-}
-
-// --- 4. Post the reply to the discussion ---
-async function postComment(body) {
-  const mutation = `
-    mutation ($discussionId: ID!, $body: String!) {
-      addDiscussionComment(input: { discussionId: $discussionId, body: $body }) {
-        comment { url }
-      }
-    }
-  `;
-  const data = await githubGraphQL(mutation, { discussionId: DISCUSSION_ID, body });
-  console.log(`Posted comment: ${data.addDiscussionComment.comment.url}`);
+function setOutput(name, value) {
+  if (GITHUB_OUTPUT) appendFileSync(GITHUB_OUTPUT, `${name}=${value}\n`);
 }
 
 async function main() {
@@ -211,25 +177,17 @@ async function main() {
   console.log(`Collected ${allDocs.length} candidate documents, ${context.length} selected as relevant context.`);
 
   if (context.length === 0) {
-    await postComment(
-      `🔔 ${MAINTAINERS_TEAM} I couldn't find any relevant prior Q&A or documentation to answer this automatically. Tagging for manual triage.\n\n---\n*Reply generated automatically by the Q&A Auto-Responder.*`
-    );
+    setOutput('has_context', 'false');
     return;
   }
 
-  const answer = await generateAnswer(question, context);
-
-  if (!answer || answer.includes(FALLBACK_PHRASE)) {
-    await postComment(
-      `🔔 ${MAINTAINERS_TEAM} Copilot was unable to locate a verified answer for this query. Tagging for manual triage.\n\n---\n*Reply generated automatically by the Q&A Auto-Responder.*`
-    );
-    return;
-  }
-
+  const contextText = context.map((doc) => `### Source: ${doc.source}\n${doc.text}`).join('\n\n');
+  const prompt = `${SYSTEM_PROMPT}\n\nContext:\n${contextText}\n\n---\nQuestion:\n${question}`;
   const sources = context.map((doc) => `- ${doc.source}`).join('\n');
-  await postComment(
-    `${answer}\n\n<details><summary>Sources</summary>\n\n${sources}\n\n</details>\n\n---\n*Reply generated automatically by the Q&A Auto-Responder. If this doesn't fully answer your question, a maintainer can follow up.*`
-  );
+
+  writeFileSync(PROMPT_FILE, prompt, 'utf8');
+  writeFileSync(SOURCES_FILE, sources, 'utf8');
+  setOutput('has_context', 'true');
 }
 
 main().catch((err) => {
