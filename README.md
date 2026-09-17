@@ -50,7 +50,7 @@ New discussions posted in the **Q&A** category are automatically answered by a b
 *   Previously answered Q&A discussions in this repository.
 *   The documentation in [bcgov/developer.connect](https://github.com/bcgov/developer.connect)'s `web/site/content` folder.
 
-If no relevant context is found, it tags `@pwei1018/api-connect-maintainers` (configurable via the `QA_BOT_MAINTAINERS_MENTION` repository variable) for manual follow-up instead of guessing. It uses the [GitHub Models](https://docs.github.com/en/github-models) API — no external secrets are required.
+If no relevant context is found, it tags `@pwei1018` (configurable via the `QA_BOT_MAINTAINERS_MENTION` repository variable) for manual follow-up instead of guessing. It uses the [GitHub Models](https://docs.github.com/en/github-models) API — no external secrets are required.
 
 ## 📬 Contact & Support
 If you are experiencing a critical production outage or an issue containing confidential data that cannot be shared publicly, please contact our enterprise support desk directly rather than opening a public issue.

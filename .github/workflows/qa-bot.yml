@@ -43,6 +43,6 @@ jobs:
           DISCUSSION_BODY: ${{ github.event.discussion.body }}
           KNOWLEDGE_REPO: bcgov/developer.connect
           KNOWLEDGE_PATH: web/site/content
-          MAINTAINERS_TEAM: ${{ vars.QA_BOT_MAINTAINERS_MENTION || '@pwei1018/api-connect-maintainers' }}
+          MAINTAINERS_TEAM: ${{ vars.QA_BOT_MAINTAINERS_MENTION || '@pwei1018' }}
           MODEL: ${{ vars.QA_BOT_MODEL || 'openai/gpt-4o-mini' }}
         run: node .github/scripts/qa-bot.mjs
