@@ -38,7 +38,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Install Copilot CLI
         run: npm install -g @github/copilot
@@ -64,7 +64,11 @@ jobs:
           # No --allow-tool flags are granted: any tool-use request Copilot
           # makes is auto-denied in --no-ask-user mode, keeping this a
           # pure text-generation call grounded only in the supplied prompt.
-          copilot -p "$(cat "$RUNNER_TEMP/qa-prompt.txt")" -s --no-ask-user > "$RUNNER_TEMP/qa-answer.txt"
+          # --no-custom-instructions prevents Copilot from also auto-loading
+          # this checkout's .github/copilot-instructions.md, which would
+          # otherwise duplicate/conflict with the instructions already
+          # embedded in the prompt by build-context.mjs.
+          copilot -p "$(cat "$RUNNER_TEMP/qa-prompt.txt")" -s --no-ask-user --no-custom-instructions > "$RUNNER_TEMP/qa-answer.txt"
 
       - name: Post answer to discussion
         if: always() # always reply, even if an earlier step failed, so discussions never go silent

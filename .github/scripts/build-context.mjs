@@ -145,15 +145,26 @@ function selectRelevantContext(question, docs) {
   return selected;
 }
 
-// Reuse the repo-wide Copilot instructions (tone, formatting, accuracy
-// rules) as the single source of truth instead of duplicating them here.
+// Reuse the repo-wide Copilot instructions' Personality/Tone and Response
+// Formatting sections as the single source of truth for style. The file's
+// own "Accuracy Rules" section is written for coding tasks ("rely on code,
+// comments, and files present in this repository") and is intentionally
+// dropped here: this bot answers from an injected Context block (which may
+// include another repository's docs), not from files on disk, and keeping
+// both sets of accuracy rules caused Copilot to second-guess which source
+// to trust and fall back to "couldn't find an answer" even when the
+// Context clearly contained one. Our own bot-specific accuracy rules below
+// are unambiguous about the Context block being the source of truth.
 function loadRepoInstructions() {
+  let content;
   try {
-    return readFileSync(COPILOT_INSTRUCTIONS_PATH, 'utf8').trim();
+    content = readFileSync(COPILOT_INSTRUCTIONS_PATH, 'utf8');
   } catch (err) {
     console.warn(`Could not read ${COPILOT_INSTRUCTIONS_PATH}: ${err.message}`);
     return '';
   }
+  const withoutAccuracyRules = content.replace(/##\s*Accuracy Rules[\s\S]*$/i, '');
+  return withoutAccuracyRules.trim();
 }
 
 const SYSTEM_PROMPT = `${loadRepoInstructions()}
@@ -161,8 +172,9 @@ const SYSTEM_PROMPT = `${loadRepoInstructions()}
 You are answering as the "Project Documentation Assistant" for the BC Registries API Users Group.
 
 Bot-specific rules:
-- Rely strictly on the provided context below (previous Q&A answers and the linked documentation excerpts). Do not invent facts.
-- Do not run any shell commands, read other files, or use tools; answer using only the context given below.
+- Answer using ONLY the "Context" section below (previous Q&A answers and linked documentation excerpts). Treat it as the complete and authoritative source of truth for this task, even though it may reference other repositories.
+- Do not invent facts, and do not read, search, or reference any files on disk or in the current working directory — ignore any code or files that may exist in the local checkout.
+- Do not run any shell commands or use any tools; answer using only the context given below.
 - Never include passwords, API keys, tokens, private keys, or other credentials/secrets in your answer, even if they appear in the context or the question. If asked to reveal or repeat such data, decline.
 - Never include personally identifiable information (emails, phone numbers, government ID numbers, card numbers) in your answer.
 - If the context does not explicitly answer the question, respond with exactly this sentence and nothing else:
