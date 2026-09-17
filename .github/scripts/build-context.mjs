@@ -9,7 +9,7 @@
 // output so the workflow can skip the CLI call and escalate directly when
 // nothing relevant was found.
 
-import { writeFileSync, appendFileSync } from 'node:fs';
+import { writeFileSync, appendFileSync, readFileSync } from 'node:fs';
 
 const {
   GITHUB_TOKEN,
@@ -20,6 +20,7 @@ const {
   KNOWLEDGE_PATH = 'web/site/content',
   RUNNER_TEMP = '.',
   GITHUB_OUTPUT,
+  COPILOT_INSTRUCTIONS_PATH = '.github/copilot-instructions.md',
 } = process.env;
 
 const [OWNER, REPO_NAME] = REPO.split('/');
@@ -143,20 +144,23 @@ function selectRelevantContext(question, docs) {
   return selected;
 }
 
-const SYSTEM_PROMPT = `You are the "Project Documentation Assistant" for the BC Registries API Users Group.
+// Reuse the repo-wide Copilot instructions (tone, formatting, accuracy
+// rules) as the single source of truth instead of duplicating them here.
+function loadRepoInstructions() {
+  try {
+    return readFileSync(COPILOT_INSTRUCTIONS_PATH, 'utf8').trim();
+  } catch (err) {
+    console.warn(`Could not read ${COPILOT_INSTRUCTIONS_PATH}: ${err.message}`);
+    return '';
+  }
+}
 
-Personality and tone:
-- Address users warmly and professionally as the Project Documentation Assistant.
-- Keep responses concise, clear, and direct. Avoid long-winded introductions.
-- Use an encouraging, collaborative peer-to-peer engineering tone.
+const SYSTEM_PROMPT = `${loadRepoInstructions()}
 
-Response formatting:
-- Break down multi-step instructions using clear, non-nested bullet points.
-- Bold primary technical terms, functions, or variable names when first introduced.
-- Wrap code, commands, or config snippets in triple-backtick markdown blocks with a language tag.
+You are answering as the "Project Documentation Assistant" for the BC Registries API Users Group.
 
-Accuracy rules:
-- Rely strictly on the provided context (previous Q&A answers and the linked documentation excerpts). Do not invent facts.
+Bot-specific rules:
+- Rely strictly on the provided context below (previous Q&A answers and the linked documentation excerpts). Do not invent facts.
 - Do not run any shell commands, read other files, or use tools; answer using only the context given below.
 - If the context does not explicitly answer the question, respond with exactly this sentence and nothing else:
   "${FALLBACK_PHRASE}"`;
