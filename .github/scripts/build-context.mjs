@@ -3,7 +3,9 @@
 //
 // Retrieves candidate context for a newly created "Q&A" discussion from:
 //   1. previously answered Q&A discussions in this repository
-//   2. the markdown knowledge base in bcgov/developer.connect (web/site/content)
+//   2. the markdown + YAML knowledge base in bcgov/developer.connect
+//      (web/site/content) — includes .md docs and .yml/.yaml metadata
+//      files such as each product's card.yml
 //   3. archived BC Registries API community forum topics, imported locally
 //      into .github/knowledge-base/forum/ via convert-discourse-export.mjs
 // and writes a ready-to-use prompt for GitHub Copilot CLI, plus the list of
@@ -97,12 +99,18 @@ async function fetchKnowledgeBaseDocs() {
     return [];
   }
   const tree = await treeRes.json();
-  const mdPaths = (tree.tree ?? [])
-    .filter((entry) => entry.type === 'blob' && entry.path.startsWith(`${KNOWLEDGE_PATH}/`) && entry.path.endsWith('.md'))
+  const KB_EXTENSIONS = ['.md', '.yml', '.yaml'];
+  const docPaths = (tree.tree ?? [])
+    .filter(
+      (entry) =>
+        entry.type === 'blob' &&
+        entry.path.startsWith(`${KNOWLEDGE_PATH}/`) &&
+        KB_EXTENSIONS.some((ext) => entry.path.endsWith(ext))
+    )
     .map((entry) => entry.path);
 
   const docs = await Promise.all(
-    mdPaths.map(async (path) => {
+    docPaths.map(async (path) => {
       const rawRes = await fetch(`https://raw.githubusercontent.com/${kbOwner}/${kbRepo}/main/${path}`);
       if (!rawRes.ok) return null;
       const text = await rawRes.text();
