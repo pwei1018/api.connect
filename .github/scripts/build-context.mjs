@@ -4,12 +4,15 @@
 // Retrieves candidate context for a newly created "Q&A" discussion from:
 //   1. previously answered Q&A discussions in this repository
 //   2. the markdown knowledge base in bcgov/developer.connect (web/site/content)
+//   3. archived BC Registries API community forum topics, imported locally
+//      into .github/knowledge-base/forum/ via convert-discourse-export.mjs
 // and writes a ready-to-use prompt for GitHub Copilot CLI, plus the list of
 // sources used, to files under $RUNNER_TEMP. Sets the `has_context` step
 // output so the workflow can skip the CLI call and escalate directly when
 // nothing relevant was found.
 
-import { writeFileSync, appendFileSync, readFileSync } from 'node:fs';
+import { writeFileSync, appendFileSync, readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { redactSensitiveData } from './redact.mjs';
 
 const {
@@ -19,6 +22,7 @@ const {
   DISCUSSION_BODY = '',
   KNOWLEDGE_REPO = 'bcgov/developer.connect',
   KNOWLEDGE_PATH = 'web/site/content',
+  FORUM_KNOWLEDGE_PATH = '.github/knowledge-base/forum',
   RUNNER_TEMP = '.',
   GITHUB_OUTPUT,
   COPILOT_INSTRUCTIONS_PATH = '.github/copilot-instructions.md',
@@ -108,6 +112,27 @@ async function fetchKnowledgeBaseDocs() {
   return docs.filter(Boolean);
 }
 
+// --- 3. Gather archived forum Q&A topics imported locally into the repo ---
+function loadForumKnowledgeBase() {
+  let files;
+  try {
+    files = readdirSync(FORUM_KNOWLEDGE_PATH).filter((f) => f.endsWith('.md'));
+  } catch (err) {
+    console.warn(`Could not read ${FORUM_KNOWLEDGE_PATH}: ${err.message}`);
+    return [];
+  }
+  return files
+    .map((file) => {
+      try {
+        const text = readFileSync(join(FORUM_KNOWLEDGE_PATH, file), 'utf8');
+        return { source: `Forum: ${file}`, text };
+      } catch {
+        return null;
+      }
+    })
+    .filter(Boolean);
+}
+
 // --- Simple keyword-overlap retrieval (no external vector DB needed) ---
 function tokenize(str) {
   return (str.toLowerCase().match(/[a-z0-9]{3,}/g) ?? []);
@@ -195,7 +220,8 @@ async function main() {
     fetchAnsweredDiscussions(),
     fetchKnowledgeBaseDocs(),
   ]);
-  const allDocs = [...priorAnswers, ...kbDocs].map((doc) => ({
+  const forumDocs = loadForumKnowledgeBase();
+  const allDocs = [...priorAnswers, ...kbDocs, ...forumDocs].map((doc) => ({
     source: doc.source,
     text: redactSensitiveData(doc.text).text,
   }));
