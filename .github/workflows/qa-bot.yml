@@ -29,7 +29,7 @@ concurrency:
 
 jobs:
   answer:
-    if: github.event.discussion.category.slug == 'q-a' || github.event.discussion.category.name == 'Q&A'
+    if: github.event.discussion.category.slug == 'q-a' || github.event.discussion.category.name == 'Q&A' || github.event.discussion.category.slug == 'general' || github.event.discussion.category.name == 'General'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
