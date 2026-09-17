@@ -44,5 +44,13 @@ To keep communication organized and ensure the right product team addresses your
 
 ---
 
+## 🤖 Q&A Auto-Responder
+
+New discussions posted in the **Q&A** category are automatically answered by a bot (`.github/workflows/qa-bot.yml`). It grounds its replies in:
+*   Previously answered Q&A discussions in this repository.
+*   The documentation in [bcgov/developer.connect](https://github.com/bcgov/developer.connect)'s `web/site/content` folder.
+
+If no relevant context is found, it tags `@pwei1018` (configurable via the `QA_BOT_MAINTAINERS_MENTION` repository variable) for manual follow-up instead of guessing. It generates answers using the [GitHub Copilot CLI](https://docs.github.com/en/copilot/how-tos/copilot-cli/use-copilot-cli-in-actions) (`copilot -p ... -s --no-ask-user`), authenticated via the built-in `GITHUB_TOKEN` with the `copilot-requests: write` permission — no external secrets required (assuming your org's "Allow use of Copilot CLI billed to the organization" policy is enabled; otherwise a PAT can be substituted, see the workflow's comments).
+
 ## 📬 Contact & Support
 If you are experiencing a critical production outage or an issue containing confidential data that cannot be shared publicly, please contact our enterprise support desk directly rather than opening a public issue.

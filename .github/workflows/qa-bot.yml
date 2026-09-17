@@ -1,0 +1,76 @@
+name: Q&A Auto-Responder
+
+# Automatically answers new "Q&A" discussions using:
+#  - this repo's previously answered Q&A discussions
+#  - the markdown knowledge base in bcgov/developer.connect (web/site/content)
+# via GitHub Copilot CLI (@github/copilot), run non-interactively in
+# programmatic mode. Falls back to tagging maintainers when no relevant
+# context is found or Copilot can't produce a grounded answer.
+#
+# Auth: uses the built-in GITHUB_TOKEN with the `copilot-requests: write`
+# permission. This requires your organization's "Allow use of Copilot CLI
+# billed to the organization" policy to be enabled. If it isn't, replace
+# GITHUB_TOKEN below with a PAT (Copilot Requests permission) stored as
+# secrets.COPILOT_ACTION_TOKEN and pass it as COPILOT_GITHUB_TOKEN instead.
+# See: https://docs.github.com/en/copilot/how-tos/copilot-cli/use-copilot-cli-in-actions
+
+on:
+  discussion:
+    types: [created]
+
+permissions:
+  contents: read
+  discussions: write
+  copilot-requests: write
+
+concurrency:
+  group: qa-bot-${{ github.event.discussion.number }}
+  cancel-in-progress: true
+
+jobs:
+  answer:
+    if: github.event.discussion.category.slug == 'q-a' || github.event.discussion.category.name == 'Q&A'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Copilot CLI
+        run: npm install -g @github/copilot
+
+      - name: Build retrieval context
+        id: context
+        continue-on-error: true # a fetch/API hiccup here must not silently drop the discussion
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          DISCUSSION_TITLE: ${{ github.event.discussion.title }}
+          DISCUSSION_BODY: ${{ github.event.discussion.body }}
+          KNOWLEDGE_REPO: bcgov/developer.connect
+          KNOWLEDGE_PATH: web/site/content
+        run: node .github/scripts/build-context.mjs
+
+      - name: Ask Copilot CLI for a grounded answer
+        if: steps.context.outputs.has_context == 'true'
+        continue-on-error: true # fall through to the maintainer-escalation comment on any failure
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # No --allow-tool flags are granted: any tool-use request Copilot
+          # makes is auto-denied in --no-ask-user mode, keeping this a
+          # pure text-generation call grounded only in the supplied prompt.
+          copilot -p "$(cat "$RUNNER_TEMP/qa-prompt.txt")" -s --no-ask-user > "$RUNNER_TEMP/qa-answer.txt"
+
+      - name: Post answer to discussion
+        if: always() # always reply, even if an earlier step failed, so discussions never go silent
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DISCUSSION_ID: ${{ github.event.discussion.node_id }}
+          MAINTAINERS_TEAM: ${{ vars.QA_BOT_MAINTAINERS_MENTION || '@pwei1018' }}
+          MODE: ${{ steps.context.outputs.has_context == 'true' && 'answered' || 'no-context' }}
+        run: node .github/scripts/post-answer.mjs
