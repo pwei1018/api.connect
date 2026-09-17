@@ -46,7 +46,7 @@ To keep communication organized and ensure the right product team addresses your
 
 ## 🤖 Q&A Auto-Responder
 
-New discussions posted in the **Q&A** category are automatically answered by a bot (`.github/workflows/qa-bot.yml`). It grounds its replies in:
+New discussions posted in the **Q&A** or **General** category are automatically answered by a bot (`.github/workflows/qa-bot.yml`). It grounds its replies in:
 *   Previously answered Q&A discussions in this repository.
 *   The documentation in [bcgov/developer.connect](https://github.com/bcgov/developer.connect)'s `web/site/content` folder.
 *   Archived topics from the BC Registries API community forum, imported locally into `.github/knowledge-base/forum/` (one markdown file per topic). To refresh this after a new forum export, run `node .github/scripts/convert-discourse-export.mjs <export.tsv>` and commit the regenerated files — sensitive data (emails, keys, tokens) is stripped automatically during the import.
