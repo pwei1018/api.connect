@@ -27,6 +27,7 @@ const FALLBACK_PHRASE =
   "I'm sorry, I couldn't find a direct answer within the repository's current codebase or documentation. A maintainer will check in shortly.";
 const MIN_CONTEXT_SCORE = 1; // require at least one keyword overlap to attempt an answer
 const MAX_CONTEXT_CHARS = 12000;
+const MAX_QUESTION_CHARS = 4000; // cap attacker-controlled discussion input fed into the prompt
 
 const PROMPT_FILE = `${RUNNER_TEMP}/qa-prompt.txt`;
 const SOURCES_FILE = `${RUNNER_TEMP}/qa-sources.txt`;
@@ -165,7 +166,7 @@ function setOutput(name, value) {
 }
 
 async function main() {
-  const question = `${DISCUSSION_TITLE}\n\n${DISCUSSION_BODY}`;
+  const question = `${DISCUSSION_TITLE}\n\n${DISCUSSION_BODY}`.slice(0, MAX_QUESTION_CHARS);
 
   const [priorAnswers, kbDocs] = await Promise.all([
     fetchAnsweredDiscussions(),

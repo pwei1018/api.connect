@@ -45,6 +45,7 @@ jobs:
 
       - name: Build retrieval context
         id: context
+        continue-on-error: true # a fetch/API hiccup here must not silently drop the discussion
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
@@ -56,8 +57,9 @@ jobs:
 
       - name: Ask Copilot CLI for a grounded answer
         if: steps.context.outputs.has_context == 'true'
+        continue-on-error: true # fall through to the maintainer-escalation comment on any failure
         env:
-          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # No --allow-tool flags are granted: any tool-use request Copilot
           # makes is auto-denied in --no-ask-user mode, keeping this a
@@ -65,6 +67,7 @@ jobs:
           copilot -p "$(cat "$RUNNER_TEMP/qa-prompt.txt")" -s --no-ask-user > "$RUNNER_TEMP/qa-answer.txt"
 
       - name: Post answer to discussion
+        if: always() # always reply, even if an earlier step failed, so discussions never go silent
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DISCUSSION_ID: ${{ github.event.discussion.node_id }}
