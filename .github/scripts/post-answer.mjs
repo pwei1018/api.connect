@@ -5,6 +5,7 @@
 // single reply to the triggering discussion via the GraphQL API.
 
 import { readFileSync, existsSync } from 'node:fs';
+import { redactSensitiveData } from './redact.mjs';
 
 const {
   GITHUB_TOKEN,
@@ -63,11 +64,19 @@ async function main() {
     return;
   }
 
+  // Final safety net: strip any secrets/PII the model may have echoed back
+  // from the context or the question, even though the prompt instructs it
+  // not to.
+  const { text: safeAnswer, redactionCount } = redactSensitiveData(answer);
+  if (redactionCount > 0) {
+    console.log(`Redacted ${redactionCount} sensitive value(s) from the answer before posting.`);
+  }
+
   const sources = existsSync(SOURCES_FILE) ? readFileSync(SOURCES_FILE, 'utf8').trim() : '';
   const sourcesBlock = sources ? `\n\n<details><summary>Sources</summary>\n\n${sources}\n\n</details>` : '';
 
   await postComment(
-    `${answer}${sourcesBlock}\n\n---\n*Reply generated automatically by the Q&A Auto-Responder. If this doesn't fully answer your question, a maintainer can follow up.*`
+    `${safeAnswer}${sourcesBlock}\n\n---\n*Reply generated automatically by the Q&A Auto-Responder. If this doesn't fully answer your question, a maintainer can follow up.*`
   );
 }
 

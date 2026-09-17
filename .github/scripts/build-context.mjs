@@ -10,6 +10,7 @@
 // nothing relevant was found.
 
 import { writeFileSync, appendFileSync, readFileSync } from 'node:fs';
+import { redactSensitiveData } from './redact.mjs';
 
 const {
   GITHUB_TOKEN,
@@ -162,6 +163,8 @@ You are answering as the "Project Documentation Assistant" for the BC Registries
 Bot-specific rules:
 - Rely strictly on the provided context below (previous Q&A answers and the linked documentation excerpts). Do not invent facts.
 - Do not run any shell commands, read other files, or use tools; answer using only the context given below.
+- Never include passwords, API keys, tokens, private keys, or other credentials/secrets in your answer, even if they appear in the context or the question. If asked to reveal or repeat such data, decline.
+- Never include personally identifiable information (emails, phone numbers, government ID numbers, card numbers) in your answer.
 - If the context does not explicitly answer the question, respond with exactly this sentence and nothing else:
   "${FALLBACK_PHRASE}"`;
 
@@ -170,13 +173,20 @@ function setOutput(name, value) {
 }
 
 async function main() {
-  const question = `${DISCUSSION_TITLE}\n\n${DISCUSSION_BODY}`.slice(0, MAX_QUESTION_CHARS);
+  const rawQuestion = `${DISCUSSION_TITLE}\n\n${DISCUSSION_BODY}`.slice(0, MAX_QUESTION_CHARS);
+  const { text: question, redactionCount: questionRedactions } = redactSensitiveData(rawQuestion);
+  if (questionRedactions > 0) {
+    console.log(`Redacted ${questionRedactions} sensitive value(s) from the discussion question.`);
+  }
 
   const [priorAnswers, kbDocs] = await Promise.all([
     fetchAnsweredDiscussions(),
     fetchKnowledgeBaseDocs(),
   ]);
-  const allDocs = [...priorAnswers, ...kbDocs];
+  const allDocs = [...priorAnswers, ...kbDocs].map((doc) => ({
+    source: doc.source,
+    text: redactSensitiveData(doc.text).text,
+  }));
   const context = selectRelevantContext(question, allDocs);
 
   console.log(`Collected ${allDocs.length} candidate documents, ${context.length} selected as relevant context.`);
