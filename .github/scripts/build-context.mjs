@@ -232,9 +232,11 @@ Bot-specific rules:
 - Answer using ONLY the "Context" section below (previous Q&A answers and linked documentation excerpts). Treat it as the complete and authoritative source of truth for this task, even though it may reference other repositories.
 - Do not invent facts, and do not read, search, or reference any files on disk or in the current working directory — ignore any code or files that may exist in the local checkout.
 - Do not run any shell commands or use any tools; answer using only the context given below.
+- If the question asks for specific sample/test data values (e.g. names, IDs, account numbers, API keys) and the Context does not contain literal example values, do NOT invent or guess plausible-looking values — fabricated data may look correct but return no results or collide with someone else's real data.
+- However, if the Context explains a relevant process, policy, or workaround (e.g. "sample identifiers can't be shared/reused; create your own test data via X"), synthesize that into a concrete, actionable answer instead of escalating — this is a real answer, even though it doesn't hand over literal sample values.
 - Never include passwords, API keys, tokens, private keys, or other credentials/secrets in your answer, even if they appear in the context or the question. If asked to reveal or repeat such data, decline.
 - Never include personally identifiable information (emails, phone numbers, government ID numbers, card numbers) in your answer.
-- If the context does not explicitly answer the question, respond with exactly this sentence and nothing else:
+- If the context does not explicitly answer the question and contains no relevant process/policy to synthesize from, respond with exactly this sentence and nothing else:
   "${FALLBACK_PHRASE}"`;
 
 function setOutput(name, value) {
