@@ -143,19 +143,43 @@ const STOPWORDS = new Set([
   'was', 'were', 'what', 'when', 'how', 'why', 'does', 'can', 'you', 'your',
 ]);
 
-function scoreDoc(queryTokens, doc) {
+// HTTP status codes are a strong, specific signal for error-report questions
+// (e.g. "401", "402", "500") — a generic keyword-overlap score treats them
+// like any other 3-digit token and can get outranked by longer but less
+// relevant documents, so give exact status-code matches extra weight.
+const HTTP_STATUS_CODE_RE = /\b[1-5]\d{2}\b/g;
+
+function extractStatusCodes(str) {
+  return new Set(str.match(HTTP_STATUS_CODE_RE) ?? []);
+}
+
+const STATUS_CODE_BONUS = 5;
+// A "RESOLVED" title marks a forum topic that reached a confirmed answer —
+// prefer these over open/unresolved reports of a similar-looking problem.
+const RESOLVED_TITLE_BONUS = 2;
+
+function scoreDoc(queryTokens, queryStatusCodes, doc) {
   const docTokens = new Set(tokenize(doc.text));
   let score = 0;
   for (const token of queryTokens) {
     if (!STOPWORDS.has(token) && docTokens.has(token)) score += 1;
   }
+  if (queryStatusCodes.size > 0) {
+    const docStatusCodes = extractStatusCodes(doc.text);
+    for (const code of queryStatusCodes) {
+      if (docStatusCodes.has(code)) score += STATUS_CODE_BONUS;
+    }
+  }
+  const titleLine = doc.text.split('\n', 1)[0] ?? '';
+  if (/resolved/i.test(titleLine)) score += RESOLVED_TITLE_BONUS;
   return score;
 }
 
 function selectRelevantContext(question, docs) {
   const queryTokens = tokenize(question);
+  const queryStatusCodes = extractStatusCodes(question);
   const scored = docs
-    .map((doc) => ({ ...doc, score: scoreDoc(queryTokens, doc) }))
+    .map((doc) => ({ ...doc, score: scoreDoc(queryTokens, queryStatusCodes, doc) }))
     .filter((doc) => doc.score >= MIN_CONTEXT_SCORE)
     .sort((a, b) => b.score - a.score);
 
