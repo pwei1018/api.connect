@@ -102,13 +102,7 @@ jobs:
           # this checkout's .github/copilot-instructions.md, which would
           # otherwise duplicate/conflict with the instructions already
           # embedded in the prompt by build-context.mjs.
-          set +e
-          copilot -p "$(cat "$RUNNER_TEMP/qa-prompt.txt")" -s --no-ask-user --no-custom-instructions > "$RUNNER_TEMP/qa-answer.txt" 2> "$RUNNER_TEMP/qa-answer.stderr"
-          echo "copilot exit code: $?"
-          echo "--- stderr ---"
-          cat "$RUNNER_TEMP/qa-answer.stderr" || true
-          echo "--- stdout (answer file) ---"
-          cat "$RUNNER_TEMP/qa-answer.txt" || true
+          copilot -p "$(cat "$RUNNER_TEMP/qa-prompt.txt")" -s --no-ask-user --no-custom-instructions > "$RUNNER_TEMP/qa-answer.txt"
 
       - name: Post answer to discussion
         if: steps.scope.outputs.in_scope == 'true' # always reply when in scope, even if an earlier step failed, so discussions never go silent
