@@ -59,7 +59,7 @@ async function main() {
 
   if (!answer || answer.includes(FALLBACK_PHRASE)) {
     await postComment(
-      `🔔 ${MAINTAINERS_TEAM} Copilot was unable to locate a verified answer for this query. Tagging for manual triage.${ESCALATION_FOOTER}`
+      `🔔 ${MAINTAINERS_TEAM} I was unable to locate a verified answer for this query. Tagging for manual triage.${ESCALATION_FOOTER}`
     );
     return;
   }
