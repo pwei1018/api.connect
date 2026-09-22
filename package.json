@@ -1,0 +1,9 @@
+{
+  "name": "api.connect-qa-bot",
+  "private": true,
+  "description": "Dependencies for the Q&A Auto-Responder GitHub Actions workflow (.github/workflows/qa-bot.yml).",
+  "type": "module",
+  "dependencies": {
+    "@github/copilot-sdk": "^1.0.14"
+  }
+}
